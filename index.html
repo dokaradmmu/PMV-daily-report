@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PMV Toolkit Report · Karad Division</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1c1c1e;--ink2:#48484a;--ink3:#8e8e93;
+  --bg:#f2f2f7;--card:#ffffff;--border:#c6c6c8;
+  --blue:#0071e3;--blue-bg:#e8f1fd;
+  --green:#28a745;--green-bg:#e6f5ea;--green-dark:#1a7a2e;
+  --orange:#f59e0b;--orange-bg:#fef3c7;--orange-dark:#92400e;
+  --red:#dc2626;--red-bg:#fee2e2;
+  --indigo:#4f46e5;--indigo-bg:#eef2ff;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.page{max-width:600px;margin:0 auto;padding:0 0 80px}
+
+/* Top bar */
+.topbar{background:var(--blue);color:#fff;padding:18px 20px 16px;position:sticky;top:0;z-index:10}
+.topbar h1{font-size:17px;font-weight:600;letter-spacing:-0.2px}
+.topbar p{font-size:12px;opacity:0.75;margin-top:2px}
+
+/* Section */
+.section{padding:20px 16px 0}
+.section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink3);margin-bottom:10px;padding-left:4px}
+
+/* Master status bar */
+.master-bar{background:var(--card);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.master-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.master-dot.loading{background:#ccc;animation:pulse 1.2s infinite}
+.master-dot.ok{background:var(--green)}
+.master-dot.err{background:var(--red)}
+.master-text{flex:1;font-size:14px}
+.master-text b{font-weight:600;display:block;font-size:14px}
+.master-text small{font-size:12px;color:var(--ink3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* Upload cards */
+.upload-card{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:10px}
+.upload-header{padding:12px 16px 10px;border-bottom:1px solid var(--bg)}
+.upload-header .tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
+.tag-today{background:var(--blue-bg);color:var(--blue)}
+.tag-prev{background:var(--indigo-bg);color:var(--indigo)}
+.upload-header h3{font-size:15px;font-weight:600}
+.upload-header p{font-size:12px;color:var(--ink3);margin-top:1px}
+.upload-body{padding:12px 16px 14px}
+.drop-btn{width:100%;padding:14px;border:2px dashed var(--border);border-radius:10px;background:var(--bg);font-size:14px;color:var(--ink2);cursor:pointer;text-align:center;position:relative;-webkit-tap-highlight-color:transparent;transition:all 0.15s}
+.drop-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;font-size:0}
+.drop-btn:active{background:#e5e5ea}
+.drop-btn.loaded{border-style:solid;border-color:var(--green);background:var(--green-bg)}
+.drop-btn .db-icon{font-size:24px;display:block;margin-bottom:4px}
+.drop-btn .db-main{font-weight:500;color:var(--ink)}
+.drop-btn .db-sub{font-size:12px;color:var(--ink3);margin-top:2px}
+.drop-btn.loaded .db-main{color:var(--green-dark);font-weight:600}
+.drop-btn.loaded .db-sub{color:var(--green)}
+.file-detected{margin-top:8px;font-size:12px;color:var(--ink3);display:none;padding:6px 10px;background:var(--bg);border-radius:6px}
+.file-detected.show{display:block}
+.file-detected span{font-weight:600;color:var(--ink2)}
+
+/* Generate section */
+.gen-card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.prog-track{height:4px;background:var(--bg);border-radius:2px;margin-bottom:14px;display:none;overflow:hidden}
+.prog-track.show{display:block}
+.prog-fill{height:100%;background:var(--blue);border-radius:2px;transition:width 0.3s ease;width:0}
+.btn-generate{width:100%;padding:16px;border-radius:10px;font-size:16px;font-weight:600;border:none;cursor:pointer;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s}
+.btn-generate:active{opacity:0.85}
+.btn-generate:disabled{background:#b0c4de;cursor:not-allowed}
+.btn-download{width:100%;padding:16px;border-radius:10px;font-size:16px;font-weight:600;border:none;cursor:pointer;background:var(--green);color:#fff;margin-top:10px;display:none;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s}
+.btn-download:active{opacity:0.85}
+.btn-download.show{display:block}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:16px 0 0}
+.stat-card{background:var(--bg);border-radius:10px;padding:12px 10px;text-align:center}
+.stat-n{font-size:18px;font-weight:700;line-height:1}
+.stat-l{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.3px;margin-top:4px}
+.s-green .stat-n{color:var(--green-dark)}
+.s-orange .stat-n{color:var(--orange-dark)}
+.s-blue .stat-n{color:var(--blue)}
+
+/* Alert */
+.alert{display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13px}
+.alert.show{display:block}
+.alert-info{background:var(--orange-bg);color:var(--orange-dark)}
+.alert-err{background:var(--red-bg);color:var(--red)}
+
+/* Log */
+.log-wrap{background:#1c1c1e;border-radius:12px;padding:14px;margin-top:10px;max-height:160px;overflow-y:auto}
+.log-wrap p{font-family:'SF Mono','Courier New',monospace;font-size:12px;line-height:1.8;color:#aeaeb2}
+.log-wrap p.ok{color:#30d158}
+.log-wrap p.err{color:#ff453a}
+.log-wrap p.info{color:#0a84ff}
+
+/* Footer */
+.footer{text-align:center;padding:24px 16px;font-size:12px;color:var(--ink3)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>PMV Toolkit Report Generator</h1>
+  <p>Karad Division · Satara District</p>
+</div>
+
+<div class="page">
+
+  <!-- Master file status -->
+  <div class="section">
+    <div class="section-title">Office Master File</div>
+    <div class="master-bar" id="master-bar">
+      <div class="master-dot loading" id="master-dot"></div>
+      <div class="master-text">
+        <b id="master-title">Loading from GitHub...</b>
+        <small id="master-sub">Taluka wise office names.xlsx</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Today's CSV -->
+  <div class="section">
+    <div class="section-title">Daily Report Files</div>
+
+    <div class="upload-card">
+      <div class="upload-header">
+        <div class="tag tag-today">Today</div>
+        <h3>Today's Delivery Report</h3>
+        <p>The newer CSV file — e.g. 24.04.2026</p>
+      </div>
+      <div class="upload-body">
+        <div class="drop-btn" id="db-today">
+          <input type="file" id="f-today" accept=".csv">
+          <span class="db-icon">📄</span>
+          <div class="db-main" id="db-today-main">Tap to select CSV file</div>
+          <div class="db-sub" id="db-today-sub">Format: DD.MM.YYYY.csv</div>
+        </div>
+        <div class="file-detected" id="det-today">
+          Detected date: <span id="det-today-date">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-card">
+      <div class="upload-header">
+        <div class="tag tag-prev">Previous Day</div>
+        <h3>Previous Day's Report</h3>
+        <p>The older CSV file — e.g. 23.04.2026</p>
+      </div>
+      <div class="upload-body">
+        <div class="drop-btn" id="db-prev">
+          <input type="file" id="f-prev" accept=".csv">
+          <span class="db-icon">📄</span>
+          <div class="db-main" id="db-prev-main">Tap to select CSV file</div>
+          <div class="db-sub" id="db-prev-sub">Format: DD.MM.YYYY.csv</div>
+        </div>
+        <div class="file-detected" id="det-prev">
+          Detected date: <span id="det-prev-date">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate -->
+  <div class="section" style="margin-top:10px">
+    <div class="gen-card">
+      <div class="prog-track" id="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+      <button class="btn-generate" id="btn-gen" disabled onclick="runReport()">▶ Generate Report</button>
+      <button class="btn-download" id="btn-dl" onclick="downloadReport()">⬇ Download Excel</button>
+      <div class="stats-grid" id="stats-grid" style="display:none">
+        <div class="stat-card s-green"><div class="stat-n" id="s-del">—</div><div class="stat-l">Delivered Apps</div></div>
+        <div class="stat-card s-orange"><div class="stat-n" id="s-pend">—</div><div class="stat-l">Pending</div></div>
+        <div class="stat-card s-blue"><div class="stat-n" id="s-new">—</div><div class="stat-l">Newly Delivered</div></div>
+      </div>
+      <div class="alert alert-info" id="alert-nochange">ℹ No new deliveries since previous day's report.</div>
+      <div class="alert alert-err" id="alert-err"></div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="section" style="margin-top:10px">
+    <div class="section-title">Activity Log</div>
+    <div class="log-wrap" id="log-wrap">
+      <p class="info">App loaded. Fetching office master from GitHub...</p>
+    </div>
+  </div>
+
+  <div class="footer">PMV Toolkit Report Tool · Karad Division<br>Data processed locally on your device · Nothing uploaded</div>
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────
+// This URL is built automatically from where this page is hosted on GitHub Pages.
+// It looks for "Taluka wise office names.xlsx" in the same GitHub repo folder.
+var MASTER_FILENAME = 'Taluka wise office names.xlsx';
+var masterURL = (function() {
+  var loc = window.location.href;
+  // If running from GitHub Pages (github.io), build sibling URL
+  if (loc.includes('github.io')) {
+    var base = loc.split('/').slice(0, -1).join('/');
+    return base + '/' + encodeURIComponent(MASTER_FILENAME);
+  }
+  // Local file fallback — won't auto-load but app still works manually
+  return null;
+})();
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+var masterData = null;
+var files = {today: null, prev: null};
+var todayLabel = '';
+var reportBlob = null;
+
+// ─── LOGGING ───────────────────────────────────────────────────────────────
+function log(msg, type) {
+  var w = document.getElementById('log-wrap');
+  var p = document.createElement('p');
+  p.className = type || '';
+  p.textContent = msg;
+  w.appendChild(p);
+  w.scrollTop = w.scrollHeight;
+}
+
+// ─── MASTER FILE LOAD FROM GITHUB ──────────────────────────────────────────
+function setMasterStatus(state, title, sub) {
+  var dot = document.getElementById('master-dot');
+  dot.className = 'master-dot ' + state;
+  document.getElementById('master-title').textContent = title;
+  document.getElementById('master-sub').textContent = sub || MASTER_FILENAME;
+}
+
+function loadMasterFromGitHub() {
+  if (!masterURL) {
+    setMasterStatus('err', 'Cannot auto-load (local mode)', 'Open via GitHub Pages URL to auto-load master');
+    log('Running locally — master file cannot be auto-fetched. Deploy to GitHub Pages for full auto mode.', 'info');
+    return;
+  }
+  log('Fetching office master from GitHub...', 'info');
+  fetch(masterURL)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' — file not found on GitHub');
+      return r.arrayBuffer();
+    })
+    .then(function(buf) {
+      var wb = XLSX.read(buf, {type: 'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      masterData = XLSX.utils.sheet_to_json(ws, {defval: ''});
+      setMasterStatus('ok', 'Office master loaded ✓', masterData.length + ' offices · ' + MASTER_FILENAME);
+      log('Office master loaded: ' + masterData.length + ' offices', 'ok');
+      checkReady();
+    })
+    .catch(function(err) {
+      setMasterStatus('err', 'Failed to load master file', err.message);
+      log('Master load error: ' + err.message, 'err');
+      log('Make sure "Taluka wise office names.xlsx" is uploaded to your GitHub repo.', 'info');
+    });
+}
+
+// ─── DATE PARSING FROM FILENAME ────────────────────────────────────────────
+// Handles: "24.04.2026.csv", "24.04.2026", "24_04_2026.csv" etc.
+function parseDateFromFilename(name) {
+  // Remove extension
+  var n = name.replace(/\.[^.]+$/, '');
+  // Match DD.MM.YYYY or DD_MM_YYYY or DDMMYYYY
+  var m = n.match(/(\d{1,2})[._\-\/](\d{1,2})[._\-\/](\d{4})/);
+  if (m) {
+    return { day: parseInt(m[1]), month: parseInt(m[2]), year: parseInt(m[3]),
+             label: n,
+             ts: new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1])).getTime() };
+  }
+  return null;
+}
+
+function formatDate(d) {
+  if (!d) return 'Unknown date';
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.day + ' ' + months[d.month-1] + ' ' + d.year;
+}
+
+// ─── FILE UPLOAD HANDLERS ──────────────────────────────────────────────────
+function setupFileInput(inputId, slot, dropId, mainId, subId, detId, detDateId) {
+  document.getElementById(inputId).addEventListener('change', function(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var dateInfo = parseDateFromFilename(file.name);
+    files[slot] = {file: file, date: dateInfo, name: file.name};
+    if (slot === 'today' && dateInfo) todayLabel = dateInfo.label;
+
+    document.getElementById(dropId).classList.add('loaded');
+    document.getElementById(mainId).textContent = file.name;
+    document.getElementById(subId).textContent = dateInfo ? formatDate(dateInfo) : 'Date not detected from filename';
+
+    var det = document.getElementById(detId);
+    var detDate = document.getElementById(detDateId);
+    if (dateInfo) {
+      detDate.textContent = formatDate(dateInfo) + ' (' + dateInfo.label + ')';
+      det.classList.add('show');
+    }
+    log('Loaded ' + slot + ': ' + file.name + (dateInfo ? ' → ' + formatDate(dateInfo) : ''), 'ok');
+    checkReady();
+  });
+}
+
+setupFileInput('f-today','today','db-today','db-today-main','db-today-sub','det-today','det-today-date');
+setupFileInput('f-prev', 'prev', 'db-prev', 'db-prev-main', 'db-prev-sub', 'det-prev', 'det-prev-date');
+
+function checkReady() {
+  var ok = masterData && files.today && files.prev;
+  document.getElementById('btn-gen').disabled = !ok;
+}
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+function cleanStr(v) { return (v === null || v === undefined) ? '' : String(v).trim(); }
+function safePIN(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var n = parseFloat(String(v));
+  return isNaN(n) ? String(v).trim() : String(Math.round(n));
+}
+function countBarcodes(s) {
+  if (!s || !String(s).trim()) return 0;
+  return String(s).split(',').map(function(b){return b.trim();}).filter(Boolean).length;
+}
+function setProgress(p) { document.getElementById('prog-fill').style.width = p + '%'; }
+
+// ─── EXCEL STYLE HELPERS ───────────────────────────────────────────────────
+function makeBorder(style, rgb) {
+  var s = {style: style, color: {rgb: rgb}};
+  return {top:s, bottom:s, left:s, right:s};
+}
+function hdrStyle(bgRGB) {
+  return {
+    font: {bold:true, color:{rgb:'FFFFFF'}, name:'Arial', sz:10},
+    fill: {fgColor:{rgb: bgRGB || '1F4E79'}, patternType:'solid'},
+    alignment: {horizontal:'center', vertical:'center', wrapText:true},
+    border: makeBorder('thin','888888')
+  };
+}
+function dataStyle(isAlt, center) {
+  return {
+    font: {name:'Arial', sz:10},
+    fill: isAlt ? {fgColor:{rgb:'EBF3FB'}, patternType:'solid'} : {patternType:'none'},
+    alignment: {horizontal: center?'center':'left', vertical:'top', wrapText:true},
+    border: makeBorder('thin','DDDDDD')
+  };
+}
+function summaryStyle() {
+  return {
+    font: {bold:true, name:'Arial', sz:10, color:{rgb:'1F4E79'}},
+    fill: {fgColor:{rgb:'D9E1F2'}, patternType:'solid'},
+    alignment: {horizontal:'center', vertical:'center', wrapText:true},
+    border: makeBorder('medium','1F4E79')
+  };
+}
+function applyStyle(ws, r, c, style) {
+  var addr = XLSX.utils.encode_cell({r:r, c:c});
+  if (!ws[addr]) ws[addr] = {t:'s', v:''};
+  ws[addr].s = style;
+}
+function styleRow(ws, rowIdx, numCols, isAlt, centerCols, isSummary) {
+  for (var c = 0; c < numCols; c++) {
+    applyStyle(ws, rowIdx, c, isSummary ? summaryStyle() : dataStyle(isAlt, centerCols.indexOf(c) >= 0));
+  }
+}
+function styleHeader(ws, numCols, bgRGB) {
+  for (var c = 0; c < numCols; c++) applyStyle(ws, 0, c, hdrStyle(bgRGB));
+}
+
+// ─── MAIN REPORT ENGINE ────────────────────────────────────────────────────
+function parseCSV(file) {
+  return new Promise(function(res, rej) {
+    Papa.parse(file, {header:true, skipEmptyLines:true,
+      complete: function(r){res(r.data);}, error: rej});
+  });
+}
+
+async function runReport() {
+  document.getElementById('btn-gen').disabled = true;
+  document.getElementById('btn-dl').classList.remove('show');
+  document.getElementById('stats-grid').style.display = 'none';
+  document.getElementById('alert-nochange').classList.remove('show');
+  document.getElementById('alert-err').classList.remove('show');
+  document.getElementById('prog-track').classList.add('show');
+  reportBlob = null;
+  setProgress(5);
+
+  try {
+    // Validate date order
+    var tDate = files.today.date, pDate = files.prev.date;
+    if (tDate && pDate && tDate.ts <= pDate.ts) {
+      log('Warning: "Today" file (' + formatDate(tDate) + ') is not newer than "Previous" file (' + formatDate(pDate) + '). Please check uploads.', 'err');
+    }
+
+    log('Parsing CSVs...', 'info');
+    var results = await Promise.all([parseCSV(files.today.file), parseCSV(files.prev.file)]);
+    var todayRows = results[0], prevRows = results[1];
+    setProgress(25);
+    log('Today CSV: ' + todayRows.length + ' total rows', 'ok');
+    log('Previous CSV: ' + prevRows.length + ' total rows', 'ok');
+
+    // Build PIN maps from master
+    var validPins = new Set();
+    var pinToOffice = {}, pinToTaluka = {};
+    masterData.forEach(function(r) {
+      var pin = safePIN(r['PIN']);
+      if (pin) {
+        validPins.add(pin);
+        pinToOffice[pin] = cleanStr(r['S.O. Name']);
+        pinToTaluka[pin] = cleanStr(r['Taluka']);
+      }
+    });
+
+    // Clean a raw CSV row
+    function cleanRow(r) {
+      return {
+        barcode: cleanStr(r['Bar Code ID']),
+        pmv:     cleanStr(r['PMV Application Number']),
+        name:    cleanStr(r['Artisan Name']),
+        mobile:  cleanStr(r['Mobile Number']),
+        address: cleanStr(r['Artisan Current Address']),
+        pin:     cleanStr(r['Artisan Pin Code']),
+        status:  cleanStr(r['Toolkit Delivery Status'])
+      };
+    }
+
+    var todayAll = todayRows.map(cleanRow).filter(function(r){return validPins.has(r.pin);});
+    var prevAll  = prevRows.map(cleanRow).filter(function(r){return validPins.has(r.pin);});
+    setProgress(40);
+    log('Filtered to Karad Division PINs — Today: ' + todayAll.length + ', Previous: ' + prevAll.length, 'ok');
+
+    var delivered = todayAll.filter(function(r){return r.status === 'Delivered';});
+    var pending   = todayAll.filter(function(r){return r.status === 'Pending';});
+    var prevPendingIds = new Set(prevAll.filter(function(r){return r.status==='Pending';}).map(function(r){return r.pmv;}));
+    var newlyDelivered = delivered.filter(function(r){return prevPendingIds.has(r.pmv);});
+
+    function sortRows(arr) {
+      return arr.slice().sort(function(a,b){
+        return (pinToTaluka[a.pin]||'').localeCompare(pinToTaluka[b.pin]||'') ||
+               (pinToOffice[a.pin]||'').localeCompare(pinToOffice[b.pin]||'') ||
+               a.name.localeCompare(b.name);
+      });
+    }
+
+    var sDelivered = sortRows(delivered);
+    var sPending   = sortRows(pending);
+    var totalArts  = sDelivered.reduce(function(s,r){return s+countBarcodes(r.barcode);},0);
+    setProgress(55);
+
+    log('Delivered: ' + sDelivered.length + ' applications · ' + totalArts + ' articles', 'ok');
+    log('Pending: ' + sPending.length + ' applications', 'ok');
+    log('Newly delivered (was pending): ' + newlyDelivered.length, 'ok');
+
+    var wb = XLSX.utils.book_new();
+    var dStr = todayLabel || (tDate ? tDate.label : 'report');
+
+    // ══════════════════════════════════════════════
+    // SHEET 1 — DELIVERED
+    // ══════════════════════════════════════════════
+    var h1 = ['Sr. No.','PMV Application Number','Artisan Name','Mobile Number','No. of Articles','Office Name','PIN Code','Taluka'];
+    var aoa1 = [h1];
+    sDelivered.forEach(function(r,i){
+      aoa1.push([i+1, r.pmv, r.name, r.mobile, countBarcodes(r.barcode),
+                 pinToOffice[r.pin]||r.pin, r.pin, pinToTaluka[r.pin]||'']);
+    });
+    aoa1.push(['TOTAL','','','', totalArts, 'Total Applications: '+sDelivered.length,'','']);
+
+    var ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+    ws1['!cols'] = [{wch:6},{wch:30},{wch:25},{wch:14},{wch:12},{wch:25},{wch:10},{wch:14}];
+    ws1['!rows'] = [{hpt:32}]; for(var i=1;i<aoa1.length;i++) ws1['!rows'].push({hpt:i===aoa1.length-1?22:18});
+    styleHeader(ws1, 8, '1F4E79');
+    for(var i=1;i<aoa1.length;i++) styleRow(ws1,i,8,i%2===0,[0,4,6],i===aoa1.length-1);
+    ws1['!freeze'] = {xSplit:0,ySplit:1,topLeftCell:'A2'};
+    XLSX.utils.book_append_sheet(wb, ws1, 'Delivered ' + dStr);
+
+    // ══════════════════════════════════════════════
+    // SHEET 2 — PENDING
+    // ══════════════════════════════════════════════
+    var h2 = ['Sr. No.','PMV Application Number','Artisan Name','Mobile Number','Barcode IDs','No. of Articles','Office Name','PIN Code','Artisan Address'];
+    var aoa2 = [h2];
+    sPending.forEach(function(r,i){
+      aoa2.push([i+1, r.pmv, r.name, r.mobile, r.barcode, countBarcodes(r.barcode),
+                 pinToOffice[r.pin]||r.pin, r.pin, r.address]);
+    });
+    if (aoa2.length===1) aoa2.push(['','','','','No pending applications for this date','','','','']);
+
+    var ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+    ws2['!cols'] = [{wch:6},{wch:30},{wch:24},{wch:14},{wch:44},{wch:12},{wch:25},{wch:10},{wch:42}];
+    ws2['!rows'] = [{hpt:32}]; for(var i=1;i<aoa2.length;i++) ws2['!rows'].push({hpt:22});
+    styleHeader(ws2, 9, 'B45309');
+    for(var i=1;i<aoa2.length;i++) styleRow(ws2,i,9,i%2===0,[0,5,7],false);
+    ws2['!freeze'] = {xSplit:0,ySplit:1,topLeftCell:'A2'};
+    XLSX.utils.book_append_sheet(wb, ws2, 'Pending ' + dStr);
+
+    // ══════════════════════════════════════════════
+    // SHEET 3 — PMV REPORT (newly delivered)
+    // ══════════════════════════════════════════════
+    var h3 = ['Sr. No.','Name of Post Office','Barcode IDs','No. of Barcodes','Artisan Name','Artisan Mobile'];
+    var aoa3 = [h3];
+    var sNew = newlyDelivered.slice().sort(function(a,b){return (pinToOffice[a.pin]||'').localeCompare(pinToOffice[b.pin]||'');});
+    if (sNew.length > 0) {
+      sNew.forEach(function(r,i){
+        aoa3.push([i+1, pinToOffice[r.pin]||r.pin, r.barcode, countBarcodes(r.barcode), r.name, r.mobile]);
+      });
+    } else {
+      aoa3.push(['','No new deliveries detected',
+        'Applications pending in previous report (' + (pDate?formatDate(pDate):'prev') + ') remain pending. '+
+        'This is normal if deliveries happened before the previous report date.',
+        0,'','']);
+    }
+
+    var ws3 = XLSX.utils.aoa_to_sheet(aoa3);
+    ws3['!cols'] = [{wch:6},{wch:26},{wch:52},{wch:14},{wch:26},{wch:16}];
+    ws3['!rows'] = [{hpt:32}]; for(var i=1;i<aoa3.length;i++) ws3['!rows'].push({hpt:sNew.length===0?50:20});
+    styleHeader(ws3, 6, '185FA5');
+    for(var i=1;i<aoa3.length;i++) {
+      if(sNew.length===0){
+        var noStyle={font:{italic:true,name:'Arial',sz:10,color:{rgb:'666666'}},alignment:{horizontal:'left',vertical:'center',wrapText:true},border:makeBorder('thin','DDDDDD')};
+        for(var c=0;c<6;c++) applyStyle(ws3,i,c,noStyle);
+      } else {
+        styleRow(ws3,i,6,i%2===0,[0,3],false);
+      }
+    }
+    ws3['!freeze'] = {xSplit:0,ySplit:1,topLeftCell:'A2'};
+    XLSX.utils.book_append_sheet(wb, ws3, 'PMV Report ' + dStr);
+
+    setProgress(90);
+    var wbout = XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});
+    reportBlob = new Blob([wbout],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    setProgress(100);
+
+    // Update UI
+    document.getElementById('s-del').textContent = sDelivered.length;
+    document.getElementById('s-pend').textContent = sPending.length;
+    document.getElementById('s-new').textContent = newlyDelivered.length;
+    document.getElementById('stats-grid').style.display = 'grid';
+    if (newlyDelivered.length === 0) document.getElementById('alert-nochange').classList.add('show');
+    document.getElementById('btn-dl').classList.add('show');
+    log('✓ Report ready — tap Download!', 'ok');
+
+  } catch(err) {
+    log('ERROR: ' + (err.message||String(err)), 'err');
+    var ea = document.getElementById('alert-err');
+    ea.textContent = 'Error: ' + (err.message||String(err));
+    ea.classList.add('show');
+    console.error(err);
+  }
+
+  document.getElementById('btn-gen').disabled = false;
+  setTimeout(function(){ document.getElementById('prog-track').classList.remove('show'); setProgress(0); }, 1000);
+}
+
+function downloadReport() {
+  if (!reportBlob) return;
+  var fname = 'PMV_Toolkit_Report_' + (todayLabel||'report') + '.xlsx';
+  var url = URL.createObjectURL(reportBlob);
+  var a = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},2000);
+  log('Downloaded: ' + fname, 'ok');
+}
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+loadMasterFromGitHub();
+</script>
+</body>
+</html>
